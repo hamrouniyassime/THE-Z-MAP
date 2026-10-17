@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>THE Z MAPS — THE ZYZ STUDIO</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap');
+
+:root{
+  --bg:#080808;
+  --panel:#0f0f0f;
+  --panel-2:#141414;
+  --border:#1a1a1a;
+  --border-soft:rgba(255,255,255,.09);
+  --text:#f0f0f0;
+  --text-dim:#9ca3af;
+  --text-faint:#6b7280;
+  --accent-1:#3b82f6;
+  --accent-2:#8b5cf6;
+  --accent-3:#ec4899;
+  --ok:#4ade80;
+  --warn:#fbbf24;
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter','Noto Sans Arabic',sans-serif;overflow:hidden}
+
+#app{
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+
+.zlogo{
+  font-weight:900;
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2),var(--accent-3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+
+/* ── Top bar ── */
+#topbar{
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  gap:.6rem;
+  padding:.65rem .8rem;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  z-index:1200;
+  position:relative;
+}
+#brand{font-size:1rem;letter-spacing:.02em;flex-shrink:0;white-space:nowrap}
+#brand .z-sub{color:var(--text-faint);font-weight:600;font-size:.68rem;display:block;margin-top:-2px}
+
+.search-box{
+  flex:1;
+  position:relative;
+  min-width:0;
+}
+.search-box input{
+  width:100%;
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  border-radius:.85rem;
+  padding:.68rem 2.6rem .68rem 1rem;
+  color:var(--text);
+  font-family:inherit;
+  font-size:.85rem;
+  outline:none;
+  transition:.15s;
+}
+.search-box input:focus{border-color:rgba(139,92,246,.55);background:#101010}
+.search-box input::placeholder{color:var(--text-faint)}
+.search-box .search-icon{
+  position:absolute;
+  left:.75rem;
+  top:50%;
+  transform:translateY(-50%);
+  width:18px;height:18px;
+  color:var(--text-faint);
+  pointer-events:none;
+}
+.search-box .clear-btn{
+  position:absolute;
+  right:.5rem;
+  top:50%;
+  transform:translateY(-50%);
+  width:26px;height:26px;
+  display:none;
+  align-items:center;justify-content:center;
+  background:none;border:none;color:var(--text-faint);
+  cursor:pointer;border-radius:.5rem;
+}
+.search-box .clear-btn:hover{background:rgba(255,255,255,.08);color:var(--text)}
+.search-box.has-text .clear-btn{display:flex}
+
+#locate-btn{
+  flex-shrink:0;
+  width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  border-radius:.75rem;
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:.15s;
+}
+#locate-btn:hover{color:var(--accent-1);border-color:rgba(59,130,246,.45)}
+#locate-btn.active{color:#fff;background:linear-gradient(135deg,var(--accent-1),var(--accent-2));border-color:transparent}
+
+/* ── suggestions dropdown ── */
+#suggestions{
+  position:absolute;
+  top:calc(100% + .4rem);
+  right:.8rem; left:.8rem;
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  border-radius:.85rem;
+  overflow:hidden;
+  display:none;
+  max-height:60vh;
+  overflow-y:auto;
+  box-shadow:0 12px 34px rgba(0,0,0,.5);
+  z-index:1300;
+}
+#suggestions.show{display:block}
+.sugg-item{
+  display:flex;
+  align-items:flex-start;
+  gap:.6rem;
+  padding:.7rem .85rem;
+  cursor:pointer;
+  border-bottom:1px solid var(--border);
+  transition:background .12s;
+}
+.sugg-item:last-child{border-bottom:none}
+.sugg-item:hover,.sugg-item.hi{background:rgba(255,255,255,.06)}
+.sugg-item i{width:17px;height:17px;flex-shrink:0;color:var(--text-faint);margin-top:.1rem}
+.sugg-main{font-size:.83rem;color:var(--text);font-weight:600;line-height:1.35}
+.sugg-sub{font-size:.72rem;color:var(--text-faint);margin-top:.1rem;line-height:1.4}
+.sugg-empty{padding:1rem .85rem;color:var(--text-faint);font-size:.78rem;text-align:center}
+
+/* ── map area ── */
+#map-wrap{flex:1;position:relative;min-height:0}
+#map{position:absolute;inset:0;background:#0a0a0a}
+/* عكس الألوان على بلاطات OpenStreetMap القياسية (المجانية بلا أي مفتاح) لتحويلها لوضع داكن */
+.z-dark-tiles{
+  filter: invert(1) hue-rotate(180deg) brightness(.95) contrast(.92) saturate(.65);
+}
+
+/* Leaflet overrides for dark theme */
+.leaflet-control-zoom{border:none !important;box-shadow:0 6px 20px rgba(0,0,0,.4) !important;margin:0 .8rem .8rem 0 !important}
+.leaflet-control-zoom a{
+  background:var(--panel-2) !important;
+  color:var(--text) !important;
+  border:1px solid var(--border-soft) !important;
+  width:38px !important;height:38px !important;
+  line-height:38px !important;
+  font-size:1.1rem !important;
+}
+.leaflet-control-zoom a:first-child{border-radius:.7rem .7rem 0 0 !important}
+.leaflet-control-zoom a:last-child{border-radius:0 0 .7rem .7rem !important;border-top:none !important}
+.leaflet-control-zoom a:hover{background:#1a1a1a !important;color:var(--accent-1) !important}
+.leaflet-control-attribution{
+  background:rgba(8,8,8,.75) !important;
+  color:var(--text-faint) !important;
+  border-radius:.5rem .5rem 0 0 !important;
+  font-size:.62rem !important;
+  padding:.15rem .5rem !important;
+}
+.leaflet-control-attribution a{color:#8b9bb8 !important}
+.leaflet-popup-content-wrapper{
+  background:var(--panel-2) !important;
+  color:var(--text) !important;
+  border-radius:.8rem !important;
+  border:1px solid var(--border-soft) !important;
+  box-shadow:0 10px 30px rgba(0,0,0,.5) !important;
+}
+.leaflet-popup-tip{background:var(--panel-2) !important;border:1px solid var(--border-soft) !important}
+.leaflet-popup-content{margin:.7rem .85rem !important;font-family:'Inter','Noto Sans Arabic',sans-serif !important}
+.leaflet-popup-close-button{color:var(--text-faint) !important}
+.leaflet-container{font-family:'Inter','Noto Sans Arabic',sans-serif !important}
+.leaflet-bar{box-shadow:0 6px 20px rgba(0,0,0,.4) !important}
+
+.popup-title{font-weight:800;font-size:.85rem;margin-bottom:.15rem}
+.popup-sub{font-size:.72rem;color:var(--text-dim);margin-bottom:.5rem;line-height:1.4}
+.popup-btn{
+  display:flex;align-items:center;justify-content:center;gap:.4rem;
+  width:100%;
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+  border:none;color:#fff;font-weight:700;font-size:.76rem;
+  padding:.5rem .6rem;border-radius:.55rem;cursor:pointer;
+  font-family:inherit;
+}
+.popup-btn i{width:14px;height:14px}
+
+/* custom markers */
+.z-pin{
+  width:30px;height:30px;
+  display:flex;align-items:center;justify-content:center;
+}
+.z-pin svg{filter:drop-shadow(0 3px 8px rgba(0,0,0,.6))}
+.z-pin.origin svg{color:var(--accent-1)}
+.z-pin.dest svg{color:var(--accent-3)}
+.z-dot{
+  width:16px;height:16px;border-radius:50%;
+  background:var(--accent-1);
+  border:3px solid #fff;
+  box-shadow:0 0 0 4px rgba(59,130,246,.3),0 2px 8px rgba(0,0,0,.5);
+}
+
+/* ── bottom route panel ── */
+#route-panel{
+  position:absolute;
+  left:.8rem; right:.8rem; bottom:.8rem;
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  border-radius:1rem;
+  box-shadow:0 14px 40px rgba(0,0,0,.55);
+  display:none;
+  z-index:1100;
+  overflow:hidden;
+  max-height:46vh;
+}
+#route-panel.show{display:flex;flex-direction:column}
+
+.rp-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.85rem .95rem .6rem;
+  flex-shrink:0;
+}
+.rp-head-main{display:flex;align-items:center;gap:.6rem;min-width:0}
+.rp-head-icon{
+  width:38px;height:38px;border-radius:.7rem;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+  color:#fff;
+}
+.rp-head-icon i{width:19px;height:19px}
+.rp-title{font-weight:800;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-meta{font-size:.74rem;color:var(--text-dim);margin-top:.1rem;display:flex;gap:.5rem;align-items:center}
+.rp-meta b{color:var(--ok);font-weight:800}
+.rp-close{
+  width:30px;height:30px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--text-faint);
+  cursor:pointer;border-radius:.6rem;
+}
+.rp-close:hover{background:rgba(255,255,255,.08);color:#fff}
+
+.rp-modes{
+  display:flex;gap:.4rem;
+  padding:0 .95rem .75rem;
+  flex-shrink:0;
+}
+.rp-mode{
+  flex:1;
+  display:flex;align-items:center;justify-content:center;gap:.35rem;
+  background:var(--panel);
+  border:1px solid var(--border-soft);
+  color:var(--text-dim);
+  padding:.45rem .3rem;
+  border-radius:.6rem;
+  font-size:.72rem;font-weight:700;
+  cursor:pointer;font-family:inherit;
+  transition:.15s;
+}
+.rp-mode i{width:15px;height:15px}
+.rp-mode.active{
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+  border-color:transparent;color:#fff;
+}
+
+.rp-steps{
+  overflow-y:auto;
+  border-top:1px solid var(--border);
+  flex:1;
+}
+.rp-step{
+  display:flex;gap:.65rem;
+  padding:.65rem .95rem;
+  border-bottom:1px solid var(--border);
+  font-size:.78rem;
+  align-items:flex-start;
+}
+.rp-step:last-child{border-bottom:none}
+.rp-step-icon{
+  width:24px;height:24px;border-radius:50%;flex-shrink:0;
+  background:var(--panel);
+  border:1px solid var(--border-soft);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent-1);
+  margin-top:.05rem;
+}
+.rp-step-icon i{width:12px;height:12px}
+.rp-step-text{color:var(--text);line-height:1.5}
+.rp-step-dist{color:var(--text-faint);font-size:.68rem;margin-top:.15rem}
+
+/* loading state */
+#route-loading{
+  padding:1.3rem .95rem;
+  display:flex;align-items:center;gap:.6rem;
+  color:var(--text-dim);font-size:.82rem;
+}
+.spin{
+  width:18px;height:18px;border-radius:50%;
+  border:2.5px solid var(--border-soft);
+  border-top-color:var(--accent-2);
+  animation:spin .7s linear infinite;
+  flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* floating action: "go here" fab replaced inline with popup button */
+
+/* my location pulse */
+.me-pulse{
+  width:18px;height:18px;border-radius:50%;
+  background:var(--accent-1);
+  border:3px solid #fff;
+  box-shadow:0 0 0 0 rgba(59,130,246,.55);
+  animation:meplse 1.8s infinite;
+}
+@keyframes meplse{
+  0%{box-shadow:0 0 0 0 rgba(59,130,246,.55)}
+  70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}
+  100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}
+}
+
+/* toast */
+#toast{
+  position:absolute;
+  top:.8rem;left:50%;
+  transform:translateX(-50%) translateY(-20px);
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  color:var(--text);
+  padding:.6rem 1rem;
+  border-radius:.7rem;
+  font-size:.78rem;font-weight:600;
+  box-shadow:0 10px 28px rgba(0,0,0,.5);
+  z-index:1400;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s, transform .25s;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* بطاقة "موقعك الحالي" */
+#me-address-card{
+  position:absolute;
+  top:.8rem; left:.8rem; right:.8rem;
+  max-width:420px;
+  margin:0 auto;
+  background:var(--panel-2);
+  border:1px solid var(--border-soft);
+  border-radius:.9rem;
+  box-shadow:0 12px 34px rgba(0,0,0,.5);
+  padding:.75rem .8rem;
+  display:none;
+  align-items:flex-start;
+  gap:.6rem;
+  z-index:1150;
+  opacity:0;
+  transform:translateY(-14px);
+  transition:opacity .25s, transform .25s;
+}
+#me-address-card.show{display:flex;opacity:1;transform:translateY(0)}
+.me-addr-icon{
+  width:34px;height:34px;border-radius:.65rem;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+  color:#fff;
+  margin-top:.05rem;
+}
+.me-addr-label{font-size:.68rem;color:var(--text-faint);font-weight:700;margin-bottom:.1rem}
+.me-addr-main{font-size:.86rem;font-weight:800;color:var(--text);line-height:1.35}
+.me-addr-sub{font-size:.73rem;color:var(--text-dim);margin-top:.15rem;line-height:1.4}
+.me-addr-close{
+  width:26px;height:26px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--text-faint);
+  cursor:pointer;border-radius:.5rem;
+}
+.me-addr-close:hover{background:rgba(255,255,255,.08);color:#fff}
+
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:10px}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="topbar">
+    <div id="brand">
+      <span class="zlogo">THE Z MAPS</span>
+      <span class="z-sub">THE ZYZ STUDIO</span>
+    </div>
+    <div class="search-box" id="search-box">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="search-input" type="text" placeholder="ابحث عن مكان، عنوان، أو معلم..." autocomplete="off">
+      <button class="clear-btn" id="clear-btn" title="مسح">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+      <div id="suggestions"></div>
+    </div>
+    <button id="locate-btn" title="موقعي الحالي">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M22 12h-3M5 12H2"/></svg>
+    </button>
+  </div>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <div id="toast"></div>
+
+    <div id="me-address-card">
+      <div class="me-addr-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      </div>
+      <div style="min-width:0;flex:1">
+        <div class="me-addr-label">موقعك الحالي</div>
+        <div class="me-addr-main" id="me-address-main">جاري التحديد...</div>
+        <div class="me-addr-sub" id="me-address-sub"></div>
+      </div>
+      <button class="me-addr-close" id="me-address-close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+
+    <div id="route-panel">
+      <div class="rp-head">
+        <div class="rp-head-main">
+          <div class="rp-head-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/></svg></div>
+          <div style="min-width:0">
+            <div class="rp-title" id="rp-title">المسار</div>
+            <div class="rp-meta" id="rp-meta"></div>
+          </div>
+        </div>
+        <button class="rp-close" id="rp-close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="rp-modes">
+        <button class="rp-mode active" data-mode="driving">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2v-6l-3-5H6L3 11v6h2"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="17.5" r="2.5"/></svg>
+          سيارة
+        </button>
+        <button class="rp-mode" data-mode="foot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="m18 20-2-9-3 2-2-2-4 1"/><path d="M9 20l1-6"/></svg>
+          مشي
+        </button>
+        <button class="rp-mode" data-mode="bike">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/></svg>
+          دراجة
+        </button>
+      </div>
+      <div id="route-loading" style="display:none">
+        <div class="spin"></div> جاري حساب أفضل مسار...
+      </div>
+      <div class="rp-steps" id="rp-steps"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   THE Z MAPS — خريطة مجانية 100% (OpenStreetMap + Leaflet + OSRM)
+   بدون أي مفتاح API
+   ═══════════════════════════════════════════════ */
+
+const DEFAULT_CENTER = [36.8065, 10.1815]; // تونس العاصمة كنقطة افتراضية
+const map = L.map('map', { zoomControl:true, attributionControl:true }).setView(DEFAULT_CENTER, 13);
+
+// طبقة الخريطة المجانية 100% بدون أي مفتاح API: بلاطات OpenStreetMap القياسية
+// مع تحويلها لوضع داكن عبر فلتر CSS (invert) — لا تعتمد على أي خدمة تتطلب تسجيل أو مفتاح
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  subdomains: 'abc',
+  maxZoom: 19,
+  className: 'z-dark-tiles'
+}).addTo(map);
+
+map.zoomControl.setPosition('bottomright');
+
+let meMarker = null, meCircle = null;
+let originMarker = null, destMarker = null;
+let routeLine = null, routeLineShadow = null;
+let originLatLng = null, destLatLng = null;
+let currentMode = 'driving';
+let searchDebounce = null;
+let activeSuggIndex = -1;
+let lastSuggestions = [];
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._tm);
+  toast._tm = setTimeout(()=> t.classList.remove('show'), 2600);
+}
+
+function pinIcon(colorClass){
+  return L.divIcon({
+    className:'',
+    html:`<div class="z-pin ${colorClass}">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 7.05 11.25 7.35 11.5.19.16.46.16.65 0C12.3 21.25 20 15.25 20 10c0-4.42-3.58-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+    </div>`,
+    iconSize:[30,30],
+    iconAnchor:[15,29],
+    popupAnchor:[0,-26]
+  });
+}
+
+/* ───────── البحث عن الأماكن عبر Nominatim (OpenStreetMap) - مجاني بدون مفتاح ───────── */
+async function searchPlaces(query){
+  if(!query || query.trim().length < 2) return [];
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=6&addressdetails=1&accept-language=ar`;
+    const res = await fetch(url, { headers: { 'Accept':'application/json' } });
+    if(!res.ok) throw new Error('search failed');
+    return await res.json();
+  }catch(e){
+    console.warn('search error', e);
+    return [];
+  }
+}
+
+function renderSuggestions(list){
+  const box = document.getElementById('suggestions');
+  lastSuggestions = list;
+  activeSuggIndex = -1;
+  if(!list.length){
+    box.innerHTML = `<div class="sugg-empty">لا توجد نتائج</div>`;
+    box.classList.add('show');
+    return;
+  }
+  box.innerHTML = list.map((p,i)=>{
+    const main = (p.display_name||'').split(',')[0];
+    const sub = (p.display_name||'').split(',').slice(1,4).join('،');
+    return `<div class="sugg-item" data-i="${i}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <div>
+        <div class="sugg-main">${main}</div>
+        <div class="sugg-sub">${sub}</div>
+      </div>
+    </div>`;
+  }).join('');
+  box.classList.add('show');
+
+  box.querySelectorAll('.sugg-item').forEach(el=>{
+    // نستخدم pointerdown بدل click: على الجوال يُطلق حدث blur على حقل البحث
+    // قبل اكتمال click، فتختفي القائمة قبل أن يُسجَّل الاختيار. حارس picked
+    // يمنع التنفيذ المزدوج إن أُطلق أكثر من حدث لنفس اللمسة.
+    let picked = false;
+    const pick = (ev)=>{
+      if(picked) return;
+      picked = true;
+      ev.preventDefault();
+      const i = parseInt(el.dataset.i);
+      selectPlace(list[i]);
+    };
+    el.addEventListener('pointerdown', pick);
+  });
+}
+
+function hideSuggestions(){
+  document.getElementById('suggestions').classList.remove('show');
+}
+
+function selectPlace(place){
+  const lat = parseFloat(place.lat), lon = parseFloat(place.lon);
+  hideSuggestions();
+  document.getElementById('search-input').value = (place.display_name||'').split(',')[0];
+  document.getElementById('search-box').classList.add('has-text');
+
+  destLatLng = [lat, lon];
+  if(destMarker) map.removeLayer(destMarker);
+  destMarker = L.marker(destLatLng, { icon: pinIcon('dest') }).addTo(map);
+  destMarker.bindPopup(`
+    <div class="popup-title">${(place.display_name||'الوجهة').split(',')[0]}</div>
+    <div class="popup-sub">${(place.display_name||'').split(',').slice(1,3).join('، ')}</div>
+    <button class="popup-btn" onclick="startRouteToDest()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+      اذهب إلى هنا
+    </button>
+  `).openPopup();
+
+  map.flyTo(destLatLng, 15, { duration: 0.8 });
+
+  // إن كان عندنا موقع المستخدم بالفعل، احسب المسار فوراً
+  if(originLatLng){
+    computeRoute();
+  }
+}
+
+window.startRouteToDest = function(){
+  if(!originLatLng){
+    toast('⚠️ فعّل "موقعي الحالي" أولاً لحساب المسار');
+    locateMe();
+    return;
+  }
+  computeRoute();
+};
+
+/* ───────── حدث الكتابة في مربع البحث ───────── */
+const searchInput = document.getElementById('search-input');
+searchInput.addEventListener('input', ()=>{
+  const q = searchInput.value;
+  document.getElementById('search-box').classList.toggle('has-text', q.length>0);
+  clearTimeout(searchDebounce);
+  if(!q.trim()){ hideSuggestions(); return; }
+  searchDebounce = setTimeout(async ()=>{
+    const results = await searchPlaces(q);
+    renderSuggestions(results);
+  }, 400);
+});
+
+searchInput.addEventListener('keydown', (e)=>{
+  const items = document.querySelectorAll('.sugg-item');
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    activeSuggIndex = Math.min(activeSuggIndex+1, items.length-1);
+    items.forEach((el,i)=>el.classList.toggle('hi', i===activeSuggIndex));
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    activeSuggIndex = Math.max(activeSuggIndex-1, 0);
+    items.forEach((el,i)=>el.classList.toggle('hi', i===activeSuggIndex));
+  } else if(e.key === 'Enter'){
+    if(activeSuggIndex >= 0 && lastSuggestions[activeSuggIndex]){
+      selectPlace(lastSuggestions[activeSuggIndex]);
+    } else if(lastSuggestions.length){
+      selectPlace(lastSuggestions[0]);
+    }
+  } else if(e.key === 'Escape'){
+    hideSuggestions();
+  }
+});
+
+document.getElementById('clear-btn').addEventListener('click', ()=>{
+  searchInput.value = '';
+  document.getElementById('search-box').classList.remove('has-text');
+  hideSuggestions();
+  searchInput.focus();
+});
+
+document.addEventListener('pointerdown', (e)=>{
+  if(!document.getElementById('search-box').contains(e.target)){
+    hideSuggestions();
+  }
+});
+
+/* ───────── تحديد الموقع الحالي ───────── */
+function locateMe(){
+  if(!navigator.geolocation){
+    toast('⚠️ المتصفح لا يدعم تحديد الموقع');
+    return;
+  }
+  const btn = document.getElementById('locate-btn');
+  btn.classList.add('active');
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const { latitude, longitude } = pos.coords;
+      originLatLng = [latitude, longitude];
+
+      if(meMarker) map.removeLayer(meMarker);
+      meMarker = L.marker(originLatLng, {
+        icon: L.divIcon({ className:'', html:'<div class="me-pulse"></div>', iconSize:[18,18], iconAnchor:[9,9] })
+      }).addTo(map);
+      meMarker.bindPopup('<div class="popup-title">موقعك الحالي</div><div class="popup-sub" id="me-popup-addr">جاري التعرف على العنوان...</div>');
+
+      map.flyTo(originLatLng, 15, { duration: 0.8 });
+      toast('✅ تم تحديد موقعك الحالي');
+      showMyLocationAddress(latitude, longitude);
+
+      if(destLatLng){
+        computeRoute();
+      }
+    },
+    (err)=>{
+      console.warn(err);
+      let msg = '⚠️ تعذّر الوصول لموقعك، تحقق من الأذونات';
+      if(err && err.code === 1){
+        msg = '⚠️ الإذن مرفوض. فعّل صلاحية الموقع لهذا المتصفح من إعدادات الهاتف ثم أعد المحاولة';
+      } else if(err && err.code === 2){
+        msg = '⚠️ تعذّر تحديد موقعك حالياً. تأكد أن GPS مفعّل';
+      } else if(err && err.code === 3){
+        msg = '⚠️ انتهت مهلة تحديد الموقع، حاول مجدداً';
+      }
+      toast(msg);
+      btn.classList.remove('active');
+    },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+}
+document.getElementById('locate-btn').addEventListener('click', locateMe);
+
+/* ───────── عرض عنوان الموقع الحالي (استعلام عكسي مجاني عبر Nominatim) ───────── */
+async function showMyLocationAddress(lat, lon){
+  const card = document.getElementById('me-address-card');
+  card.classList.add('show');
+  document.getElementById('me-address-main').textContent = 'جاري التعرف على موقعك...';
+  document.getElementById('me-address-sub').textContent = '';
+  try{
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ar&zoom=18`);
+    if(!res.ok) throw new Error('reverse geocode failed');
+    const data = await res.json();
+    const addr = data.address || {};
+    const main = addr.road || addr.neighbourhood || addr.suburb || (data.display_name||'').split(',')[0] || 'موقع غير مسمى';
+    const cityPart = addr.city || addr.town || addr.village || addr.county || '';
+    const sub = [addr.suburb && addr.suburb !== main ? addr.suburb : null, cityPart, addr.country].filter(Boolean).join('، ');
+    document.getElementById('me-address-main').textContent = main;
+    document.getElementById('me-address-sub').textContent = sub || (data.display_name || '');
+    if(meMarker){
+      meMarker.setPopupContent(`<div class="popup-title">موقعك الحالي</div><div class="popup-sub">${data.display_name || main}</div>`);
+    }
+  }catch(e){
+    console.warn(e);
+    document.getElementById('me-address-main').textContent = 'تعذّر التعرف على اسم العنوان';
+    document.getElementById('me-address-sub').textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  }
+}
+document.getElementById('me-address-close').addEventListener('click', ()=>{
+  document.getElementById('me-address-card').classList.remove('show');
+});
+
+/* ───────── النقر على الخريطة لتحديد وجهة يدوياً ───────── */
+map.on('click', async (e)=>{
+  const { lat, lng } = e.latlng;
+  destLatLng = [lat, lng];
+  if(destMarker) map.removeLayer(destMarker);
+  destMarker = L.marker(destLatLng, { icon: pinIcon('dest') }).addTo(map);
+  destMarker.bindPopup(`
+    <div class="popup-title">📍 وجهة اخترتها يدوياً من الخريطة</div>
+    <div class="popup-sub">جاري التعرف على العنوان...</div>
+    <button class="popup-btn" onclick="startRouteToDest()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+      اذهب إلى هنا
+    </button>
+  `).openPopup();
+
+  // استعلام عكسي لمعرفة اسم المكان (مجاني عبر Nominatim)
+  try{
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ar`);
+    if(res.ok){
+      const data = await res.json();
+      const name = (data.display_name||'').split(',')[0] || 'نقطة محددة';
+      const sub = (data.display_name||'').split(',').slice(1,3).join('، ');
+      destMarker.setPopupContent(`
+        <div class="popup-title">📍 ${name}</div>
+        <div class="popup-sub">وجهة اخترتها يدوياً &middot; ${sub}</div>
+        <button class="popup-btn" onclick="startRouteToDest()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          اذهب إلى هنا
+        </button>
+      `);
+    }
+  }catch(err){ console.warn(err); }
+
+  if(originLatLng){
+    computeRoute();
+  }
+});
+
+/* ───────── حساب المسار عبر OSRM (مجاني 100%، بدون مفتاح) ───────── */
+const OSRM_PROFILES = { driving:'driving', foot:'foot', bike:'bike' };
+
+async function computeRoute(){
+  if(!originLatLng || !destLatLng){
+    toast('⚠️ حدد موقعك والوجهة أولاً');
+    return;
+  }
+  const panel = document.getElementById('route-panel');
+  panel.classList.add('show');
+  document.getElementById('route-loading').style.display = 'flex';
+  document.getElementById('rp-steps').innerHTML = '';
+
+  const profile = OSRM_PROFILES[currentMode] || 'driving';
+  const coords = `${originLatLng[1]},${originLatLng[0]};${destLatLng[1]},${destLatLng[0]}`;
+  const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&steps=true&alternatives=false&annotations=false`;
+
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('routing failed');
+    const data = await res.json();
+    if(!data.routes || !data.routes.length) throw new Error('no route');
+
+    const route = data.routes[0];
+    drawRoute(route);
+    renderRouteSteps(route);
+  }catch(e){
+    console.warn(e);
+    document.getElementById('route-loading').style.display = 'none';
+    document.getElementById('rp-steps').innerHTML = `<div class="sugg-empty" style="padding:1.2rem">⚠️ تعذّر حساب المسار حالياً، حاول مجدداً</div>`;
+    toast('⚠️ تعذّر حساب المسار');
+  }
+}
+
+function drawRoute(route){
+  if(routeLine) map.removeLayer(routeLine);
+  if(routeLineShadow) map.removeLayer(routeLineShadow);
+
+  const latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+  routeLineShadow = L.polyline(latlngs, {
+    color:'#000', weight:9, opacity:.35, lineCap:'round', lineJoin:'round'
+  }).addTo(map);
+
+  routeLine = L.polyline(latlngs, {
+    color:'#6d8bf8', weight:5.5, opacity:.95, lineCap:'round', lineJoin:'round'
+  }).addTo(map);
+
+  // تدرج بصري بسيط عبر خط إضافي أفتح في المنتصف
+  map.fitBounds(routeLine.getBounds(), { paddingTopLeft:[40,120], paddingBottomRight:[40,260] });
+}
+
+function fmtDistance(m){
+  if(m < 1000) return Math.round(m) + ' م';
+  return (m/1000).toFixed(1) + ' كم';
+}
+function fmtDuration(s){
+  const mins = Math.round(s/60);
+  if(mins < 60) return mins + ' د';
+  const h = Math.floor(mins/60), mm = mins%60;
+  return h + ' سا ' + (mm? mm+' د':'');
+}
+
+const STEP_ICONS = {
+  depart: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+  arrive: '<circle cx="12" cy="12" r="3"/>',
+  turn: '<path d="M9 18l6-6-6-6"/>',
+  'turn-left':'<path d="M15 18l-6-6 6-6"/>',
+  'turn-right':'<path d="M9 18l6-6-6-6"/>',
+  straight:'<path d="M12 19V5M5 12l7-7 7 7"/>',
+  roundabout:'<circle cx="12" cy="12" r="7"/><path d="M12 5v4"/>',
+  default:'<circle cx="12" cy="12" r="3"/>'
+};
+function stepIconFor(step){
+  const t = step.maneuver && step.maneuver.type;
+  const mod = step.maneuver && step.maneuver.modifier;
+  if(t === 'depart') return STEP_ICONS.depart;
+  if(t === 'arrive') return STEP_ICONS.arrive;
+  if(t === 'roundabout' || t === 'rotary') return STEP_ICONS.roundabout;
+  if(mod && mod.includes('left')) return STEP_ICONS['turn-left'];
+  if(mod && mod.includes('right')) return STEP_ICONS['turn-right'];
+  if(mod === 'straight') return STEP_ICONS.straight;
+  return STEP_ICONS.default;
+}
+
+const STREET_DIR_AR = { left:'يسار', right:'يمين', straight:'للأمام', 'slight left':'يسار قليلاً', 'slight right':'يمين قليلاً', 'sharp left':'يسار حاداً', 'sharp right':'يمين حاداً', uturn:'استدارة كاملة' };
+
+function describeStep(step, isFirst, isLast){
+  const name = step.name && step.name.trim() ? step.name.trim() : 'الطريق';
+  const t = step.maneuver.type;
+  const mod = step.maneuver.modifier;
+  if(isFirst) return `ابدأ باتجاه ${name !== 'الطريق' ? name : 'وجهتك'}`;
+  if(isLast || t === 'arrive') return `وصلت إلى وجهتك`;
+  if(t === 'roundabout' || t === 'rotary') return `ادخل الدوّار واخرج نحو ${name}`;
+  if(mod && STREET_DIR_AR[mod]) return `انعطف ${STREET_DIR_AR[mod]} إلى ${name}`;
+  return `تابع السير في ${name}`;
+}
+
+function renderRouteSteps(route){
+  document.getElementById('route-loading').style.display = 'none';
+
+  const dist = fmtDistance(route.distance);
+  const dur = fmtDuration(route.duration);
+  document.getElementById('rp-title').textContent = 'أسهل طريق إلى وجهتك';
+  document.getElementById('rp-meta').innerHTML = `<b>${dur}</b> &middot; ${dist} &middot; ${modeLabel(currentMode)}`;
+
+  const legs = route.legs || [];
+  const steps = legs.flatMap(l => l.steps || []);
+  const stepsHtml = steps.map((s,i)=>{
+    const isFirst = i===0, isLast = i===steps.length-1;
+    return `<div class="rp-step">
+      <div class="rp-step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${stepIconFor(s)}</svg></div>
+      <div>
+        <div class="rp-step-text">${describeStep(s, isFirst, isLast)}</div>
+        ${s.distance>0 ? `<div class="rp-step-dist">${fmtDistance(s.distance)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('rp-steps').innerHTML = stepsHtml || `<div class="sugg-empty" style="padding:1.2rem">لا توجد تفاصيل إضافية</div>`;
+}
+
+function modeLabel(m){
+  return m==='driving' ? 'بالسيارة' : m==='foot' ? 'مشياً' : 'بالدراجة';
+}
+
+/* ───────── أزرار وسيلة التنقل ───────── */
+document.querySelectorAll('.rp-mode').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.rp-mode').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    if(originLatLng && destLatLng){
+      computeRoute();
+    }
+  });
+});
+
+document.getElementById('rp-close').addEventListener('click', ()=>{
+  document.getElementById('route-panel').classList.remove('show');
+  if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
+  if(routeLineShadow){ map.removeLayer(routeLineShadow); routeLineShadow=null; }
+});
+
+/* محاولة تحديد الموقع تلقائياً عند الفتح (صامتة، لا تزعج المستخدم إن رُفض الإذن) */
+window.addEventListener('load', ()=>{
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const { latitude, longitude } = pos.coords;
+        originLatLng = [latitude, longitude];
+        if(meMarker) map.removeLayer(meMarker);
+        meMarker = L.marker(originLatLng, {
+          icon: L.divIcon({ className:'', html:'<div class="me-pulse"></div>', iconSize:[18,18], iconAnchor:[9,9] })
+        }).addTo(map);
+        meMarker.bindPopup('<div class="popup-title">موقعك الحالي</div><div class="popup-sub" id="me-popup-addr">جاري التعرف على العنوان...</div>');
+        map.setView(originLatLng, 14);
+        document.getElementById('locate-btn').classList.add('active');
+        showMyLocationAddress(latitude, longitude);
+      },
+      ()=>{ /* صامت: المستخدم لم يمنح الإذن بعد */ },
+      { enableHighAccuracy:false, timeout:6000 }
+    );
+  }
+});
+</script>
+</body>
+</html>
